@@ -20,7 +20,7 @@ class Faction:
     def __init__(self, name: str, color: str):
         self.name = name
         self.color = color
-        self.credits = 1_000_000_000  # Start with 1 billion credits
+        self.credits = 10_000  # Start with 10,000 credits
         self.total_resources = 0.0
         self.daily_production = 0.0
         self.net_worth = self.credits
@@ -45,32 +45,96 @@ class Faction:
     
     def weekly_reset(self):
         """Reset weekly credits."""
-        self.credits = 1_000_000_000
+        self.credits = 10_000
         self.net_worth = self.credits + self.total_resources
+
+
+class Mercenary:
+    """Represents an individual mercenary."""
+    
+    def __init__(self, merc_id: int):
+        self.id = merc_id
+        self.assigned = False
+        self.mission_complete_hour = None  # Hour when mission completes
+    
+    def assign_mission(self, current_hour: int, duration: float = 0.5):
+        """Assign mercenary to a mission."""
+        self.assigned = True
+        self.mission_complete_hour = current_hour + duration
+    
+    def is_available(self, current_hour: int) -> bool:
+        """Check if mercenary is available."""
+        if not self.assigned:
+            return True
+        if self.mission_complete_hour is not None and current_hour >= self.mission_complete_hour:
+            return True
+        return False
+    
+    def release(self):
+        """Release mercenary from mission."""
+        self.assigned = False
+        self.mission_complete_hour = None
 
 
 class MercenaryPool:
     """Manages the shared mercenary pool."""
     
-    def __init__(self, initial_size: int = 1000):
-        self.size = initial_size
+    def __init__(self, initial_size: int = 300):
+        self.mercenaries = [Mercenary(i) for i in range(initial_size)]
         self.min_size = 300
         self.max_size = 5000
     
-    def allocate(self, count: int) -> bool:
+    @property
+    def size(self) -> int:
+        """Return total number of mercenaries."""
+        return len(self.mercenaries)
+    
+    @size.setter
+    def size(self, value: int):
+        """Set total number of mercenaries (for backwards compatibility)."""
+        current = len(self.mercenaries)
+        if value > current:
+            # Add mercenaries
+            for i in range(current, value):
+                self.mercenaries.append(Mercenary(i))
+        elif value < current:
+            # Remove mercenaries (only remove available ones)
+            to_remove = current - value
+            removed = 0
+            for merc in list(self.mercenaries):
+                if not merc.assigned and removed < to_remove:
+                    self.mercenaries.remove(merc)
+                    removed += 1
+    
+    def get_available_count(self, current_hour: int) -> int:
+        """Get count of available mercenaries."""
+        return sum(1 for m in self.mercenaries if m.is_available(current_hour))
+    
+    def allocate(self, count: int, current_hour: int) -> bool:
         """Allocate mercenaries for a mission."""
-        if self.size >= count:
-            self.size -= count
+        available = [m for m in self.mercenaries if m.is_available(current_hour)]
+        if len(available) >= count:
+            for i in range(count):
+                available[i].assign_mission(current_hour)
             return True
         return False
     
     def release(self, count: int):
-        """Release mercenaries back to pool."""
-        self.size = min(self.size + count, self.max_size)
+        """Release mercenaries back to pool (backwards compatibility)."""
+        # This is now handled automatically by checking mission_complete_hour
+        pass
+    
+    def process_hour(self, current_hour: int):
+        """Process hourly updates - release mercenaries whose missions are complete."""
+        for merc in self.mercenaries:
+            if merc.assigned and merc.mission_complete_hour is not None:
+                if current_hour >= merc.mission_complete_hour:
+                    merc.release()
     
     def adjust_size(self, delta: int):
         """Adjust pool size within bounds."""
-        self.size = max(self.min_size, min(self.max_size, self.size + delta))
+        new_size = max(self.min_size, min(self.max_size, len(self.mercenaries) + delta))
+        self.size = new_size
 
 
 class FactionAI:
@@ -275,7 +339,7 @@ class FactionAI:
         required_mercs = max(1, mission.cost // 10000)
         
         # Check if mercenaries available
-        if not self.mercenary_pool.allocate(required_mercs):
+        if not self.mercenary_pool.allocate(required_mercs, current_hour):
             self.faction.add_credits(mission.cost)  # Refund
             return False
         
@@ -329,8 +393,8 @@ class FactionAI:
         else:
             success = False
         
-        # Release mercenaries
-        self.mercenary_pool.release(required_mercs)
+        # Note: Mercenaries are now automatically released after 0.5 hours
+        # No need to manually release them here
         
         if not success:
             self.faction.add_credits(mission.cost)  # Refund if mission failed

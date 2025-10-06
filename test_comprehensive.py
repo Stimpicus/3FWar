@@ -25,7 +25,7 @@ def test_all_features():
     assert len(state['factions']) == 3, "Should have 3 factions"
     for color in ['orange', 'green', 'blue']:
         assert color in state['factions'], f"{color} faction should exist"
-        assert state['factions'][color]['credits'] == 1_000_000_000, f"{color} should start with 1B credits"
+        assert state['factions'][color]['credits'] == 10_000, f"{color} should start with 10k credits"
         assert state['factions'][color]['territory_count'] > 0, f"{color} should have territories"
     
     print("  ✓ Initial setup correct")
@@ -73,9 +73,9 @@ def test_all_features():
     assert state['hour'] == 168, "Should be at hour 168"
     assert state['week'] == 1, "Should be week 1"
     
-    # Check that credits were reset to 1B
+    # Check that credits were reset to 10k
     for color, data in state['factions'].items():
-        assert data['credits'] <= 1_000_000_000, f"{color} credits should be reset or spent"
+        assert data['credits'] <= 10_000, f"{color} credits should be reset or spent"
         print(f"  ✓ {color.capitalize()}: Credits = ${data['credits']:,}")
     
     # Test 5: Save and Load
@@ -143,7 +143,7 @@ def test_all_features():
     assert reset_state['week'] == 0, "Week should reset to 0"
     
     for color, data in reset_state['factions'].items():
-        assert data['credits'] == 1_000_000_000, f"{color} credits should reset"
+        assert data['credits'] == 10_000, f"{color} credits should reset"
         assert data['total_resources'] == 0, f"{color} resources should reset"
     
     print("  ✓ Simulation reset successfully")
