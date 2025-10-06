@@ -1,6 +1,41 @@
 # 3FWar
 
+## Hex-Grid Territory Control Simulation
+
+A strategic simulation where three factions (Orange, Green, and Blue) compete for territorial dominance and wealth accumulation through tactical expansion, disruption, and resource management.
+
 <img width="684" height="737" alt="image" src="https://github.com/user-attachments/assets/baf8009c-7384-4c9a-ad4e-3de366e3e088" />
+
+## Quick Start
+
+### Installation
+
+1. Install Python 3.8 or higher
+2. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+### Running the Application
+
+**Visual Interface:**
+```bash
+python main.py
+```
+
+**Examples & Testing:**
+```bash
+python examples.py  # Run usage examples
+python test_sim.py  # Run simulation tests
+```
+
+## Game Mechanics
+
+### Overview
+
+## Game Mechanics
+
+### Overview
 
 I want to build a simulation with the following definitions and parameters from the above image.
 
@@ -49,3 +84,111 @@ The application should display a graphical representation of the hex map.
 The application should display the following metrics for each faction in real-time: Net worth, current daily production, 
 
 The application should allow the following actions: Start simulation, Pause simulation, Reset simulation, Save simulation data, Load simulation data, Adjust simulation speed scaling between 0 and 4 with a value of 1 representing 1 simulated hour every real-world second.
+
+## Controls
+
+- **SPACE**: Start/Pause simulation
+- **R**: Reset simulation to initial state
+- **S**: Save simulation state to `simulation_save.json`
+- **L**: Load simulation state from `simulation_save.json`
+- **+/-**: Adjust simulation speed (0-4, where 1 = 1 simulated hour per second)
+- **Arrow Keys**: Pan camera view
+- **Mouse Wheel**: Zoom in/out
+
+## Display Features
+
+The application displays:
+- **Hex Map**: Visual representation of all territories
+  - Grey: Neutral home base (center)
+  - Orange/Green/Blue: Faction home bases and claimed territories
+  - Yellow: Unclaimed territories available for expansion
+- **Real-time Metrics** (per faction):
+  - Net worth (credits + resources)
+  - Current credits
+  - Daily production
+  - Territory count
+- **Time Tracking**: Current week, day, and hour
+- **Mercenary Pool**: Available mercenaries (shared resource)
+
+## Architecture
+
+The simulation consists of several key modules:
+
+- **`hex_grid.py`**: Hex coordinate system and grid management
+  - Axial coordinate system for hexagons
+  - Dynamic grid expansion/contraction
+  - Neighbor finding and pathfinding utilities
+
+- **`faction.py`**: Faction AI and mission management
+  - Three mission types: Claim, Disrupt, Reclaim
+  - AI decision-making for strategic expansion
+  - Mercenary pool management
+
+- **`simulation.py`**: Core simulation engine
+  - Hourly, daily, and weekly event processing
+  - Resource production and territory mechanics
+  - State serialization for save/load
+
+- **`main.py`**: Pygame-based visual interface
+  - Hex rendering with zoom and pan
+  - Real-time metrics display
+  - User controls and interaction
+
+## Implementation Details
+
+### Resource Production
+- Connected territories produce resources every hour
+- Resource value scales with distance from center: `base_value * (1 + distance * 0.1)`
+- Resources are deposited to faction home base at the end of each day
+
+### Territory Protection
+- Newly claimed hexes and adjacent same-faction hexes are protected for 3 hours
+- Protected hexes cannot be targeted by Disrupt or Reclaim missions
+
+### Disconnected Territories
+- Territories without a contiguous path to the home base stop producing resources
+- Disconnected territories shrink by 1 hex per hour (edge cells first)
+- When a territory is reclaimed, accumulated resources are forfeited
+
+### Grid Dynamics
+- Grid expands when edge hexes are claimed (adds new neighbors)
+- Unclaimed hexes with no claimed neighbors are removed from the map
+- Grid never contracts below its initial size
+
+### Mission Costs
+- **Claim**: Base cost 1,000 credits × (1 + distance × 0.05)
+- **Disrupt**: Base cost 5,000 credits × (1 + distance × 0.05)
+- **Reclaim**: Base cost 3,000 credits × (1 + distance × 0.05)
+
+## Files
+
+- `main.py` - Main application with pygame interface
+- `simulation.py` - Core simulation engine
+- `hex_grid.py` - Hex grid and coordinate system
+- `faction.py` - Faction AI and missions
+- `test_sim.py` - Simulation tests
+- `examples.py` - Usage examples
+- `create_screenshot.py` - Screenshot generation utility
+- `requirements.txt` - Python dependencies
+- `RUNNING.md` - Detailed running instructions
+
+## Development
+
+### Testing
+```bash
+python test_sim.py
+```
+
+### Examples
+```bash
+python examples.py
+```
+
+### Creating Screenshots
+```bash
+python create_screenshot.py
+```
+
+## License
+
+This project is open source and available for educational and personal use.
