@@ -3,7 +3,7 @@
 import sys
 sys.path.insert(0, '/home/runner/work/3FWar/3FWar')
 
-from hex_grid import HexGrid
+from hex_grid import HexGrid, Hex
 from faction import Faction, FactionAI, MercenaryPool, Mission
 from simulation import Simulation
 
@@ -19,31 +19,56 @@ print("-" * 70)
 
 grid = HexGrid()
 
-# Verify spiral order
-print(f"✓ Spiral order initialized: {len(grid.spiral_order)} hexes (expected 61)")
+# Verify grid initialization
+print(f"✓ Grid initialized with coordinate-based mapping")
 
-# Expected ownership counts
-grey_ids = {0, 1, 2, 3, 4, 5, 6, 8, 12, 16, 21, 27, 33, 39, 40, 41, 47, 48, 49, 55, 56, 57}
-green_ids = {9, 10, 11, 22, 23, 24, 25, 26, 42, 43, 44, 45, 46}
-orange_ids = {13, 14, 15, 28, 29, 30, 31, 32, 50, 51, 52, 53, 54}
-blue_ids = {7, 17, 18, 19, 20, 34, 35, 36, 37, 38, 58, 59, 60}
+# Expected coordinate-based ownership
+grey_coords = [
+    (0, 0), (0, -1), (1, -1), (1, 0), (0, 1), (-1, 1), (-1, 0), (-2, 0), 
+    (2, -2), (0, 2), (0, 3), (-3, 0), (3, -3), (3, -4), (4, -4), (4, -3), 
+    (1, 3), (0, 4), (-1, 4), (-4, 1), (-4, 0), (-3, -1)
+]
+green_coords = [
+    (-2, 2), (-3, 3), (-4, 4), (-2, 1), (-3, 2), (-4, 3), (-3, 1), (-4, 2), 
+    (-1, 2), (-2, 3), (-3, 4), (-1, 3), (-2, 4)
+]
+orange_coords = [
+    (0, -2), (0, -3), (0, -4), (1, -2), (1, -3), (1, -4), (2, -3), (2, -4), 
+    (-1, -1), (-1, -2), (-1, -3), (-2, -1), (-2, -2)
+]
+blue_coords = [
+    (2, 0), (3, 0), (4, 0), (1, 1), (2, 1), (3, 1), (1, 2), (2, 2), 
+    (2, -1), (3, -1), (4, -1), (3, -2), (4, -2)
+]
 
-# Verify ownership based on spiral IDs
-print("\nVerifying spiral ID ownership:")
-for idx, hex_pos in enumerate(grid.spiral_order):
-    cell = grid.get_cell(hex_pos)
-    if idx in grey_ids:
-        assert cell.owner == 'grey', f"ID {idx} should be grey, got {cell.owner}"
-        assert cell.is_permanent, f"ID {idx} should be permanent"
-    elif idx in green_ids:
-        assert cell.owner == 'green', f"ID {idx} should be green, got {cell.owner}"
-        assert cell.is_permanent, f"ID {idx} should be permanent"
-    elif idx in orange_ids:
-        assert cell.owner == 'orange', f"ID {idx} should be orange, got {cell.owner}"
-        assert cell.is_permanent, f"ID {idx} should be permanent"
-    elif idx in blue_ids:
-        assert cell.owner == 'blue', f"ID {idx} should be blue, got {cell.owner}"
-        assert cell.is_permanent, f"ID {idx} should be permanent"
+# Verify ownership based on coordinates
+print("\nVerifying coordinate-based ownership:")
+all_correct = True
+for q, r in grey_coords:
+    cell = grid.get_cell(Hex(q, r))
+    if not cell or cell.owner != 'grey' or not cell.is_permanent:
+        all_correct = False
+        break
+for q, r in green_coords:
+    cell = grid.get_cell(Hex(q, r))
+    if not cell or cell.owner != 'green' or not cell.is_permanent:
+        all_correct = False
+        break
+for q, r in orange_coords:
+    cell = grid.get_cell(Hex(q, r))
+    if not cell or cell.owner != 'orange' or not cell.is_permanent:
+        all_correct = False
+        break
+for q, r in blue_coords:
+    cell = grid.get_cell(Hex(q, r))
+    if not cell or cell.owner != 'blue' or not cell.is_permanent:
+        all_correct = False
+        break
+
+if all_correct:
+    print("✓ All coordinate assignments verified")
+else:
+    print("✗ Some coordinate assignments are incorrect")
 
 grey_count = sum(1 for c in grid.cells.values() if c.owner == 'grey' and c.is_permanent)
 green_count = sum(1 for c in grid.cells.values() if c.owner == 'green' and c.is_permanent)
@@ -60,7 +85,7 @@ merc_pool = MercenaryPool(1000)
 orange_faction = Faction('Orange', 'orange')
 orange_ai = FactionAI(orange_faction, grid, merc_pool)
 
-grey_hex = grid.spiral_order[0]  # Center grey hex
+grey_hex = Hex(0, 0)  # Center grey hex
 mission = Mission('claim', grey_hex, 'orange', 1000)
 success = orange_ai.execute_mission(mission, 0)
 assert not success, "Should not be able to claim permanent territory"

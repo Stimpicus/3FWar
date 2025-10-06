@@ -35,6 +35,7 @@ env/
 # Simulation saves
 simulation_save.json
 simulation_screenshot.png
+initial_grid_coordinate_mapping.png
 example_save.json
 
 # OS
