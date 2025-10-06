@@ -234,22 +234,12 @@ class HexGrid:
             self.initial_hexes.add(hex_pos)
         
         # Add surrounding yellow (unclaimed) border hexes
-        # These are hexes adjacent to the owned territories but not owned
+        # These are hexes directly adjacent to the owned territories
         yellow_coords = [
-            # Additional hexes around the owned territories to form a border
-            # Top border
-            (-2, -3), (-1, -4), (-2, -2), (1, -6), (2, -6), (3, -5), (4, -4), (5, -3),
-            # Right border
-            (5, -2), (6, -1), (7, -1), (7, 1), (6, 2), (5, 3), (4, 3),
-            # Bottom-right border
-            (3, 3), (2, 3), (1, 4), (0, 5), (-1, 5),
-            # Bottom border
-            (-2, 6), (-3, 6), (-4, 6), (-5, 6), (-3, 5), (-2, 5),
-            # Left border
-            (-5, 5), (-5, 4), (-5, 3), (-5, 2), (-5, 1), (-5, 0), (-4, -1), (-3, -2),
-            # Additional yellow hexes to complete the border
-            (-1, -5), (4, -5), (5, -4), (6, -2), (8, 0), (7, 2), (3, 4), (1, 5),
-            (-6, 5), (-6, 4), (-6, 3), (-6, 2), (-6, 1), (-5, -1), (-4, -2),
+            (-5, 0), (-5, 1), (-5, 2), (-5, 3), (-5, 4), (-5, 5), (-4, -1), (-4, 5),
+            (-3, -2), (-3, 5), (-2, -3), (-2, 5), (-1, -4), (-1, 5), (0, -5), (0, 5),
+            (1, -5), (1, 4), (2, -5), (2, 3), (3, -5), (3, 2), (4, -5), (4, 1),
+            (5, -5), (5, -4), (5, -3), (5, -2), (5, -1), (5, 0),
         ]
         
         for q, r in yellow_coords:
