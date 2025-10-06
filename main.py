@@ -76,8 +76,9 @@ class HexRenderer:
         return corners
     
     def draw_hex(self, surface: pygame.Surface, hex_pos: Hex, color: Tuple[int, int, int], 
-                 border_color: Tuple[int, int, int] = None, border_width: int = 2):
-        """Draw a hexagon on the surface."""
+                 border_color: Tuple[int, int, int] = None, border_width: int = 2,
+                 is_permanent: bool = False, is_protected: bool = False):
+        """Draw a hexagon on the surface with optional icons."""
         center = self.hex_to_pixel(hex_pos)
         corners = self.get_hex_corners(center)
         
@@ -87,6 +88,82 @@ class HexRenderer:
         # Draw border
         if border_color:
             pygame.draw.polygon(surface, border_color, corners, border_width)
+        
+        # Draw Lock icon for permanent territories
+        if is_permanent:
+            self.draw_lock_icon(surface, center)
+        
+        # Draw Shield icon for protected territories
+        if is_protected:
+            self.draw_shield_icon(surface, center)
+    
+    def draw_lock_icon(self, surface: pygame.Surface, center: Tuple[float, float]):
+        """Draw a lock icon at the center of a hex."""
+        # Simple lock using rectangles and a circle
+        lock_size = self.hex_size * 0.4
+        
+        # Lock body (rectangle)
+        body_width = lock_size * 0.6
+        body_height = lock_size * 0.5
+        body_rect = pygame.Rect(
+            center[0] - body_width / 2,
+            center[1] - body_height / 4,
+            body_width,
+            body_height
+        )
+        pygame.draw.rect(surface, COLORS['black'], body_rect)
+        pygame.draw.rect(surface, COLORS['white'], body_rect, 1)
+        
+        # Lock shackle (arc)
+        shackle_radius = lock_size * 0.25
+        shackle_center = (center[0], center[1] - body_height / 4)
+        pygame.draw.arc(
+            surface,
+            COLORS['black'],
+            pygame.Rect(
+                shackle_center[0] - shackle_radius,
+                shackle_center[1] - shackle_radius * 1.5,
+                shackle_radius * 2,
+                shackle_radius * 2
+            ),
+            math.pi,
+            0,
+            3
+        )
+        
+        # Keyhole (small circle)
+        keyhole_radius = lock_size * 0.08
+        pygame.draw.circle(surface, COLORS['white'], 
+                         (int(center[0]), int(center[1] + lock_size * 0.05)), 
+                         int(keyhole_radius))
+    
+    def draw_shield_icon(self, surface: pygame.Surface, center: Tuple[float, float]):
+        """Draw a shield icon at the center of a hex."""
+        # Simple shield shape using polygon
+        shield_size = self.hex_size * 0.4
+        
+        # Shield points (pentagon-like shape)
+        points = [
+            (center[0], center[1] - shield_size / 2),  # Top
+            (center[0] + shield_size / 2, center[1] - shield_size / 4),  # Top-right
+            (center[0] + shield_size / 2, center[1] + shield_size / 4),  # Bottom-right
+            (center[0], center[1] + shield_size / 2),  # Bottom point
+            (center[0] - shield_size / 2, center[1] + shield_size / 4),  # Bottom-left
+            (center[0] - shield_size / 2, center[1] - shield_size / 4),  # Top-left
+        ]
+        
+        # Draw shield with blue color
+        pygame.draw.polygon(surface, COLORS['blue'], points)
+        pygame.draw.polygon(surface, COLORS['white'], points, 2)
+        
+        # Draw cross in center for extra detail
+        cross_size = shield_size * 0.3
+        pygame.draw.line(surface, COLORS['white'],
+                        (center[0] - cross_size / 2, center[1]),
+                        (center[0] + cross_size / 2, center[1]), 2)
+        pygame.draw.line(surface, COLORS['white'],
+                        (center[0], center[1] - cross_size / 2),
+                        (center[0], center[1] + cross_size / 2), 2)
 
 
 class UIPanel:
@@ -303,8 +380,13 @@ class Application:
             else:
                 color = COLORS['yellow']
             
-            # Draw hex
-            self.renderer.draw_hex(self.screen, hex_pos, color, COLORS['black'], 1)
+            # Check if protected
+            is_protected = cell.is_protected(self.simulation.current_hour)
+            
+            # Draw hex with icons
+            self.renderer.draw_hex(self.screen, hex_pos, color, COLORS['black'], 1,
+                                  is_permanent=cell.is_permanent,
+                                  is_protected=is_protected)
         
         # Restore origin
         self.renderer.origin = old_origin
