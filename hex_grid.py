@@ -63,11 +63,31 @@ class HexCell:
         self.protection_until = current_hour + duration
     
     def produce_resources(self, base_value: float = 100.0):
-        """Produce resources based on distance from center."""
-        distance = self.hex.distance_from_center()
-        # Resources scale with distance: closer = less valuable, farther = more valuable
-        multiplier = 1 + (distance * 0.1)
+        """Produce resources based on ring distance from center."""
+        ring = self.hex.distance_from_center()
+        # Resources scale with ring: Ring 0: 1.0, Ring 1: 1.1, Ring 2: 1.2, Ring 3: 1.3, Ring 4+: 1.4
+        multiplier = self._get_ring_multiplier(ring)
         self.resources += base_value * multiplier
+    
+    def _get_ring_multiplier(self, ring: int) -> float:
+        """Get resource production multiplier for a given ring.
+        
+        Args:
+            ring: The ring number (distance from center)
+            
+        Returns:
+            Multiplier for resource production
+        """
+        if ring == 0:
+            return 1.0
+        elif ring == 1:
+            return 1.1
+        elif ring == 2:
+            return 1.2
+        elif ring == 3:
+            return 1.3
+        else:  # ring >= 4
+            return 1.4
     
     def deposit_resources(self) -> float:
         """Deposit accumulated resources and return the amount."""
