@@ -99,7 +99,7 @@ class FactionAI:
         disconnected = [cell for cell in faction_cells if cell.hex not in connected and not cell.is_home]
         if disconnected:
             for cell in disconnected[:3]:  # Limit to 3 reclaim missions
-                path = self._find_shortest_reconnection_path(cell, home_cells)
+                path = self._find_shortest_reconnection_path(cell, home_cells, connected)
                 if path:
                     target = path[0]  # First hex to reclaim
                     cost = self._calculate_mission_cost('reclaim', target)
@@ -118,6 +118,27 @@ class FactionAI:
             missions.append(Mission('disrupt', target.hex, self.faction.color, cost))
         
         return missions
+    
+    def _is_hex_reachable(self, target_hex: Hex, connected: Set[Hex]) -> bool:
+        """Check if a hex is adjacent to connected faction territory.
+        
+        Args:
+            target_hex: The hex to check
+            connected: Set of hexes that are connected to home base
+            
+        Returns:
+            True if the hex is adjacent to (or within) connected territory
+        """
+        # Check if target is already in connected territory
+        if target_hex in connected:
+            return True
+        
+        # Check if target is adjacent to connected territory
+        for neighbor in self.grid.get_neighbors(target_hex):
+            if neighbor.hex in connected:
+                return True
+        
+        return False
     
     def _find_claim_targets(self, faction_cells: List[HexCell], connected: Set[Hex], current_hour: int) -> List[HexCell]:
         """Find unclaimed hexes adjacent to connected faction territory."""
@@ -140,10 +161,17 @@ class FactionAI:
         return targets
     
     def _find_disrupt_targets(self, current_hour: int) -> List[HexCell]:
-        """Find enemy cells that would break supply lines if claimed."""
+        """Find enemy cells that would break supply lines if claimed.
+        
+        Only returns targets that are adjacent to connected faction territory.
+        """
         targets = []
         other_factions = ['orange', 'green', 'blue']
         other_factions.remove(self.faction.color)
+        
+        # Get our connected territory
+        home_cells = self.grid.get_home_cells(self.faction.color)
+        connected = self.grid.find_connected_cells(home_cells)
         
         for enemy_color in other_factions:
             enemy_cells = self.grid.get_faction_cells(enemy_color)
@@ -152,9 +180,13 @@ class FactionAI:
             if not enemy_home:
                 continue
             
-            # Find cells that are critical connection points
+            # Find cells that are critical connection points AND reachable
             for cell in enemy_cells:
                 if cell.is_home or cell.is_protected(current_hour):
+                    continue
+                
+                # Check if this cell is reachable from our connected territory
+                if not self._is_hex_reachable(cell.hex, connected):
                     continue
                 
                 # Check if removing this cell would disconnect territory
@@ -175,8 +207,20 @@ class FactionAI:
         # Simple heuristic: if cell has multiple same-faction neighbors, it's likely a connection point
         return True
     
-    def _find_shortest_reconnection_path(self, disconnected_cell: HexCell, home_cells: List[HexCell]) -> Optional[List[Hex]]:
-        """Find shortest path to reconnect a disconnected cell to home base."""
+    def _find_shortest_reconnection_path(self, disconnected_cell: HexCell, home_cells: List[HexCell], connected: Set[Hex]) -> Optional[List[Hex]]:
+        """Find shortest path to reconnect a disconnected cell to home base.
+        
+        The path must start from a hex adjacent to connected territory and lead to the disconnected cell.
+        Only returns valid paths where the first hex is reachable from connected territory.
+        
+        Args:
+            disconnected_cell: The cell to reconnect
+            home_cells: List of home base cells
+            connected: Set of hexes connected to home base
+            
+        Returns:
+            List of hex positions forming the path, or None if no path exists
+        """
         # Simple breadth-first search
         from collections import deque
         
@@ -193,10 +237,10 @@ class FactionAI:
                 visited.add(neighbor.hex)
                 new_path = path + [neighbor.hex]
                 
-                # If we reached a home cell, return path
-                if neighbor in home_cells or (neighbor.owner == self.faction.color and 
-                                               neighbor.hex in self.grid.find_connected_cells(home_cells)):
-                    return new_path
+                # If we reached connected territory, return the path
+                if neighbor.hex in connected:
+                    # Reverse the path so it starts from connected territory
+                    return list(reversed(new_path))
                 
                 # If cell is claimable (owned by enemy or unclaimed), continue search
                 if neighbor.owner != self.faction.color:
@@ -218,7 +262,11 @@ class FactionAI:
         return int(cost)
     
     def execute_mission(self, mission: Mission, current_hour: int) -> bool:
-        """Execute a mission if possible."""
+        """Execute a mission if possible.
+        
+        Enforces strict contiguity: missions can only target hexes adjacent to 
+        connected faction territory (with a path from home base).
+        """
         # Check if faction can afford it
         if not self.faction.spend_credits(mission.cost):
             return False
@@ -231,13 +279,19 @@ class FactionAI:
             self.faction.add_credits(mission.cost)  # Refund
             return False
         
+        # Get connected territory for contiguity check
+        home_cells = self.grid.get_home_cells(self.faction.color)
+        connected = self.grid.find_connected_cells(home_cells)
+        
         # Execute mission based on type
         target_cell = self.grid.get_cell(mission.target)
         
         if mission.type == 'claim':
             # Can only claim unclaimed territory (owner is None)
             # Cannot claim permanently owned territories
-            if target_cell and target_cell.owner is None and not target_cell.is_permanent:
+            # Must be adjacent to connected territory
+            if (target_cell and target_cell.owner is None and not target_cell.is_permanent
+                    and self._is_hex_reachable(mission.target, connected)):
                 target_cell.owner = self.faction.color
                 target_cell.set_protection(current_hour, 3)
                 
@@ -254,7 +308,10 @@ class FactionAI:
         
         elif mission.type in ['disrupt', 'reclaim']:
             # Cannot disrupt/reclaim permanently owned territories or home bases
-            if target_cell and target_cell.owner not in [None, self.faction.color] and not target_cell.is_home and not target_cell.is_permanent:
+            # Must be adjacent to connected territory
+            if (target_cell and target_cell.owner not in [None, self.faction.color] 
+                    and not target_cell.is_home and not target_cell.is_permanent
+                    and self._is_hex_reachable(mission.target, connected)):
                 if not target_cell.is_protected(current_hour):
                     target_cell.owner = self.faction.color
                     target_cell.set_protection(current_hour, 3)
