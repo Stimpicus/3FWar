@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Demonstration of the sector-based mission cost system."""
+"""Demonstration of the sector-based mission reward system."""
 import sys
 sys.path.insert(0, '/home/runner/work/3FWar/3FWar')
 
@@ -7,7 +7,7 @@ from hex_grid import HexGrid, Hex
 from faction import Faction, FactionAI, MercenaryPool
 
 print("=" * 70)
-print("SECTOR-BASED MISSION COST DEMONSTRATION")
+print("SECTOR-BASED MISSION REWARD DEMONSTRATION")
 print("=" * 70)
 
 grid = HexGrid()
@@ -23,7 +23,7 @@ print("  • Green Sector: Extends along s ≈ 0 (through Green's base at (-4, 4
 print("  • Blue Sector: Extends along r ≈ 0 (through Blue's base at (4, 0))")
 
 print("\n" + "-" * 70)
-print("ORANGE FACTION MISSION COSTS")
+print("ORANGE FACTION MISSION REWARDS")
 print("-" * 70)
 
 # Define test scenarios
@@ -65,7 +65,7 @@ scenarios = [
     },
 ]
 
-print("\nCLAIM MISSION COSTS (Base: 1,000 credits):")
+print("\nCLAIM MISSION REWARDS (Base: 1,000 credits):")
 for scenario in scenarios:
     hex_pos = scenario['hex']
     mission_type = scenario['mission_type']
@@ -74,8 +74,8 @@ for scenario in scenarios:
     if hex_pos not in grid.cells:
         grid.expand_grid(hex_pos)
     
-    # Calculate cost
-    cost = orange_ai._calculate_mission_cost(mission_type, hex_pos)
+    # Calculate reward
+    reward = orange_ai._calculate_mission_reward(mission_type, hex_pos)
     
     # Get sector info
     cell = grid.get_cell(hex_pos)
@@ -86,7 +86,7 @@ for scenario in scenarios:
     
     info = f"{scenario['name']:50s} | "
     info += f"Sector: {sector:6s} | "
-    info += f"Cost: {cost:6,d} | "
+    info += f"Cost: {reward:6,d} | "
     
     if sector != 'orange':
         native_base = grid.get_faction_home_base(sector)
@@ -98,7 +98,7 @@ for scenario in scenarios:
     print(f"  {info}")
 
 print("\n" + "-" * 70)
-print("DISRUPT MISSION COSTS (Base: 5,000 credits)")
+print("DISRUPT MISSION REWARDS (Base: 5,000 credits)")
 print("-" * 70)
 print("\nDisruption missions are significantly more expensive, making them")
 print("economically unsuitable for permanent territorial expansion:")
@@ -114,26 +114,26 @@ for name, hex_pos in disrupt_scenarios:
     if hex_pos not in grid.cells:
         grid.expand_grid(hex_pos)
     
-    cost = orange_ai._calculate_mission_cost('disrupt', hex_pos)
+    reward = orange_ai._calculate_mission_reward('disrupt', hex_pos)
     cell = grid.get_cell(hex_pos)
     sector = cell.native_sector
     
-    print(f"  {name:25s}: {cost:8,d} credits (sector: {sector})")
+    print(f"  {name:25s}: {reward:8,d} credits (sector: {sector})")
 
 print("\n" + "=" * 70)
 print("KEY INSIGHTS")
 print("=" * 70)
 print("""
 1. NATIVE TERRITORY ADVANTAGE
-   - Operating in your own sector has minimal costs
-   - Base cost only increases slightly with distance from center
+   - Operating in your own sector has minimal rewards
+   - Base reward only increases slightly with distance from center
 
 2. CROSS-SECTOR PENALTY
    - 1.5x base multiplier for any cross-sector operation
    - This makes expansion into enemy territory more expensive
 
 3. PROXIMITY PENALTY
-   - Up to 3x additional cost when operating near enemy home base
+   - Up to 3x additional reward when operating near enemy home base
    - Penalty decreases linearly with distance (threshold: 12 hexes)
    - Makes disruption near enemy bases very expensive
 

@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Test to verify sector-based mission cost system."""
+"""Test to verify sector-based mission cost system.
+
+NOTE: This test is now deprecated. The mission cost system has been replaced
+with a dynamic reward system that no longer uses sector-based modifiers.
+The new system calculates rewards based on territory balance instead of
+costs based on sector proximity.
+
+See test_dynamic_rewards.py for tests of the new reward system.
+"""
 import sys
 sys.path.insert(0, '/home/runner/work/3FWar/3FWar')
 
@@ -7,7 +15,11 @@ from hex_grid import HexGrid, Hex
 from faction import Faction, FactionAI, MercenaryPool
 
 print("=" * 70)
-print("SECTOR-BASED MISSION COST SYSTEM TEST")
+print("SECTOR-BASED MISSION COST SYSTEM TEST (DEPRECATED)")
+print("=" * 70)
+print("\nNOTE: This test verifies the old sector-based cost system.")
+print("The system has been replaced with dynamic rewards.")
+print("This test remains for reference but may not reflect current behavior.")
 print("=" * 70)
 
 grid = HexGrid()
@@ -55,7 +67,7 @@ print("-" * 70)
 # Test orange faction in orange sector
 test_hex = Hex(1, -5)
 grid.expand_grid(test_hex)
-cost_same = orange_ai._calculate_mission_cost('claim', test_hex)
+cost_same = orange_ai._calculate_mission_reward('claim', test_hex)
 cell = grid.get_cell(test_hex)
 print(f"Orange claiming {test_hex} (sector: {cell.native_sector}): {cost_same} credits")
 
@@ -65,7 +77,7 @@ print("-" * 70)
 # Orange faction claiming near green base
 green_near = Hex(-4, 5)
 grid.expand_grid(green_near)
-cost_cross_near = orange_ai._calculate_mission_cost('claim', green_near)
+cost_cross_near = orange_ai._calculate_mission_reward('claim', green_near)
 cell_near = grid.get_cell(green_near)
 dist_to_green = green_near.distance_to(green_base)
 print(f"Orange claiming {green_near} (sector: {cell_near.native_sector}, dist to green base: {dist_to_green}): {cost_cross_near} credits")
@@ -73,7 +85,7 @@ print(f"Orange claiming {green_near} (sector: {cell_near.native_sector}, dist to
 # Orange faction claiming near blue base
 blue_near = Hex(5, -1)
 grid.expand_grid(blue_near)
-cost_blue_near = orange_ai._calculate_mission_cost('claim', blue_near)
+cost_blue_near = orange_ai._calculate_mission_reward('claim', blue_near)
 cell_blue_near = grid.get_cell(blue_near)
 dist_to_blue = blue_near.distance_to(blue_base)
 print(f"Orange claiming {blue_near} (sector: {cell_blue_near.native_sector}, dist to blue base: {dist_to_blue}): {cost_blue_near} credits")
@@ -84,7 +96,7 @@ print("-" * 70)
 # Orange faction claiming far from green base in green sector
 green_far = Hex(-1, 8)
 grid.expand_grid(green_far)
-cost_cross_far = orange_ai._calculate_mission_cost('claim', green_far)
+cost_cross_far = orange_ai._calculate_mission_reward('claim', green_far)
 cell_far = grid.get_cell(green_far)
 dist_far = green_far.distance_to(green_base)
 print(f"Orange claiming {green_far} (sector: {cell_far.native_sector}, dist to green base: {dist_far}): {cost_cross_far} credits")
@@ -93,9 +105,9 @@ print("\n6. TESTING DISRUPT MISSION COSTS")
 print("-" * 70)
 
 # Disrupt missions should be very expensive in cross-sector near base
-disrupt_cost_near = orange_ai._calculate_mission_cost('disrupt', green_near)
-disrupt_cost_far = orange_ai._calculate_mission_cost('disrupt', green_far)
-disrupt_cost_same = orange_ai._calculate_mission_cost('disrupt', test_hex)
+disrupt_cost_near = orange_ai._calculate_mission_reward('disrupt', green_near)
+disrupt_cost_far = orange_ai._calculate_mission_reward('disrupt', green_far)
+disrupt_cost_same = orange_ai._calculate_mission_reward('disrupt', test_hex)
 
 print(f"Disrupt in own sector: {disrupt_cost_same} credits")
 print(f"Disrupt near enemy base (cross-sector): {disrupt_cost_near} credits")
@@ -104,7 +116,7 @@ print(f"Disrupt far from enemy base (cross-sector): {disrupt_cost_far} credits")
 print("\n7. COST MULTIPLIER ANALYSIS")
 print("-" * 70)
 
-base_cost = orange_ai._calculate_mission_cost('claim', Hex(0, -4))  # Orange base
+base_cost = orange_ai._calculate_mission_reward('claim', Hex(0, -4))  # Orange base
 print(f"Baseline cost (at orange base): {base_cost} credits")
 
 multipliers = []
@@ -112,7 +124,7 @@ for distance in range(0, 13):
     # Create test hex at varying distances from green base in green sector
     test_pos = Hex(-4 + distance, 4)
     grid.expand_grid(test_pos)
-    cost = orange_ai._calculate_mission_cost('claim', test_pos)
+    cost = orange_ai._calculate_mission_reward('claim', test_pos)
     cell_test = grid.get_cell(test_pos)
     
     if cell_test.native_sector == 'green':

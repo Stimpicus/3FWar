@@ -37,7 +37,7 @@ class Simulation:
         
         # Reset factions
         for faction in self.factions.values():
-            faction.credits = 10_000
+            faction.credits = 0  # Factions no longer receive initial credits
             faction.daily_production = 0.0
         
         # Reset AIs
@@ -108,9 +108,9 @@ class Simulation:
     
     def _process_weekly(self):
         """Process weekly events."""
-        # Reset faction credits
+        # Weekly reset no longer resets credits - factions don't receive weekly income
         for faction in self.factions.values():
-            faction.weekly_reset()
+            faction.weekly_reset()  # This now does nothing, but kept for compatibility
     
     def _shrink_disconnected_territories(self):
         """Shrink disconnected territories by one hex per hour."""
