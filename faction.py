@@ -303,15 +303,63 @@ class FactionAI:
         return None
     
     def _calculate_mission_cost(self, mission_type: str, target: Hex) -> int:
-        """Calculate cost of a mission."""
+        """Calculate cost of a mission with sector-based modifiers.
+        
+        Base cost is modified by:
+        1. Distance from center (original behavior)
+        2. Sector ownership: If the target is in another faction's native sector,
+           cost increases based on proximity to that faction's home base
+        
+        Cost multipliers for cross-sector operations:
+        - BASE_CROSS_SECTOR_MULTIPLIER: 1.5 (50% increase for operating in non-native sector)
+        - MAX_PROXIMITY_MULTIPLIER: 3.0 (3x cost when very close to native faction's base)
+        - Proximity multiplier decreases linearly with distance from native base
+        """
+        # Base costs for each mission type
         base_costs = {
             'claim': 1000,
             'disrupt': 5000,
             'reclaim': 3000
         }
         
+        # Start with base cost
         distance = target.distance_from_center()
         cost = base_costs[mission_type] * (1 + distance * 0.05)
+        
+        # Get the target cell to check its native sector
+        target_cell = self.grid.get_cell(target)
+        
+        if target_cell and target_cell.native_sector:
+            native_sector = target_cell.native_sector
+            
+            # If operating in another faction's native sector, apply penalty
+            if native_sector != self.faction.color:
+                # Get the native faction's home base for distance calculation
+                native_home_base = self.grid.get_faction_home_base(native_sector)
+                
+                if native_home_base:
+                    # Calculate distance from target to native faction's home base
+                    distance_to_native_base = target.distance_to(native_home_base)
+                    
+                    # Cross-sector base multiplier
+                    BASE_CROSS_SECTOR_MULTIPLIER = 1.5
+                    
+                    # Maximum proximity multiplier (when right next to native base)
+                    MAX_PROXIMITY_MULTIPLIER = 3.0
+                    
+                    # Distance at which proximity penalty becomes negligible (12 hexes)
+                    PROXIMITY_DISTANCE_THRESHOLD = 12
+                    
+                    # Calculate proximity multiplier (higher when closer to native base)
+                    # Linear decay from MAX at distance 0 to 1.0 at THRESHOLD
+                    if distance_to_native_base < PROXIMITY_DISTANCE_THRESHOLD:
+                        proximity_factor = 1.0 - (distance_to_native_base / PROXIMITY_DISTANCE_THRESHOLD)
+                        proximity_multiplier = 1.0 + proximity_factor * (MAX_PROXIMITY_MULTIPLIER - 1.0)
+                    else:
+                        proximity_multiplier = 1.0
+                    
+                    # Apply both cross-sector and proximity multipliers
+                    cost *= BASE_CROSS_SECTOR_MULTIPLIER * proximity_multiplier
         
         return int(cost)
     
