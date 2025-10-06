@@ -9,7 +9,7 @@ class Simulation:
     
     def __init__(self):
         self.grid = HexGrid()
-        self.mercenary_pool = MercenaryPool(initial_size=1000)
+        self.mercenary_pool = MercenaryPool(initial_size=300)
         
         # Create factions
         self.factions = {
@@ -33,11 +33,11 @@ class Simulation:
     def reset(self):
         """Reset simulation to initial state."""
         self.grid = HexGrid()
-        self.mercenary_pool = MercenaryPool(initial_size=1000)
+        self.mercenary_pool = MercenaryPool(initial_size=300)
         
         # Reset factions
         for faction in self.factions.values():
-            faction.credits = 1_000_000_000
+            faction.credits = 10_000
             faction.total_resources = 0.0
             faction.daily_production = 0.0
             faction.net_worth = faction.credits
@@ -75,10 +75,13 @@ class Simulation:
     
     def _process_hourly(self):
         """Process hourly events."""
-        # 1. Shrink disconnected territories
+        # 1. Process mercenary missions (release completed missions)
+        self.mercenary_pool.process_hour(self.current_hour)
+        
+        # 2. Shrink disconnected territories
         self._shrink_disconnected_territories()
         
-        # 2. Produce resources for connected territories
+        # 3. Produce resources for connected territories
         self._produce_resources()
     
     def _process_daily(self):
@@ -259,7 +262,8 @@ class Simulation:
                 }
                 for color, faction in self.factions.items()
             },
-            'mercenary_pool': self.mercenary_pool.size
+            'mercenary_pool': self.mercenary_pool.size,
+            'mercenary_available': self.mercenary_pool.get_available_count(self.current_hour)
         }
     
     def save_state(self) -> dict:
@@ -274,11 +278,21 @@ class Simulation:
                 'protection_until': cell.protection_until
             }
         
+        # Save mercenary states
+        mercenaries_data = []
+        for merc in self.mercenary_pool.mercenaries:
+            mercenaries_data.append({
+                'id': merc.id,
+                'assigned': merc.assigned,
+                'mission_complete_hour': merc.mission_complete_hour
+            })
+        
         return {
             'current_hour': self.current_hour,
             'current_day': self.current_day,
             'current_week': self.current_week,
             'mercenary_pool_size': self.mercenary_pool.size,
+            'mercenaries': mercenaries_data,
             'factions': {
                 color: {
                     'credits': faction.credits,
@@ -296,7 +310,20 @@ class Simulation:
         self.current_hour = state['current_hour']
         self.current_day = state['current_day']
         self.current_week = state['current_week']
-        self.mercenary_pool.size = state['mercenary_pool_size']
+        
+        # Load mercenary pool
+        if 'mercenaries' in state:
+            # New format with individual mercenaries
+            from faction import Mercenary
+            self.mercenary_pool.mercenaries = []
+            for merc_data in state['mercenaries']:
+                merc = Mercenary(merc_data['id'])
+                merc.assigned = merc_data['assigned']
+                merc.mission_complete_hour = merc_data['mission_complete_hour']
+                self.mercenary_pool.mercenaries.append(merc)
+        else:
+            # Old format - just set size (backwards compatibility)
+            self.mercenary_pool.size = state.get('mercenary_pool_size', 300)
         
         # Load faction data
         for color, faction_data in state['factions'].items():
