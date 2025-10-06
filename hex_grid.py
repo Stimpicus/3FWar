@@ -31,6 +31,10 @@ class Hex:
         """Calculate distance from the center hex (0, 0)."""
         return (abs(self.q) + abs(self.q + self.r) + abs(self.r)) // 2
     
+    def distance_to(self, other: 'Hex') -> int:
+        """Calculate distance to another hex."""
+        return (abs(self.q - other.q) + abs(self.q + self.r - other.q - other.r) + abs(self.r - other.r)) // 2
+    
     def to_pixel(self, size: float, origin: Tuple[float, float]) -> Tuple[float, float]:
         """Convert hex coordinates to pixel coordinates."""
         x = size * (3/2 * self.q)
@@ -41,11 +45,12 @@ class Hex:
 class HexCell:
     """Represents a hex cell with game state."""
     
-    def __init__(self, hex_pos: Hex, owner: Optional[str] = None, is_home: bool = False, is_permanent: bool = False):
+    def __init__(self, hex_pos: Hex, owner: Optional[str] = None, is_home: bool = False, is_permanent: bool = False, native_sector: Optional[str] = None):
         self.hex = hex_pos
         self.owner = owner  # None, 'grey', 'orange', 'green', 'blue'
         self.is_home = is_home  # True for home base hexes
         self.is_permanent = is_permanent  # True for permanently owned territories
+        self.native_sector = native_sector  # 'orange', 'green', or 'blue' - which sector this hex naturally belongs to
         self.resources = 0.0  # Accumulated resources
         self.protection_until = 0  # Simulation hour until which this cell is protected
         
@@ -85,6 +90,17 @@ class HexGrid:
         self.cells = {}  # Dict[Hex, HexCell]
         self.initial_hexes = set()  # Track initial grid size
         self.spiral_order = []  # Track spiral order of hexes
+        
+        # Define sector axis endpoints for native territories
+        # Orange sector: extends through (4, -4) - the r-axis direction
+        # Green sector: extends through (0, 4) - the negative q-axis direction  
+        # Blue sector: extends through (-4, 0) - the negative s-axis (positive q+r) direction
+        self.sector_axes = {
+            'orange': Hex(4, -4),   # r = -4, s = 0
+            'green': Hex(0, 4),     # q = 0, s = -4
+            'blue': Hex(-4, 0)      # q = -4, r = 0
+        }
+        
         self._initialize_grid()
     
     def _generate_spiral_order(self) -> List[Hex]:
@@ -181,6 +197,46 @@ class HexGrid:
         
         return spiral
     
+    def _determine_native_sector(self, hex_pos: Hex) -> str:
+        """Determine which sector a hex naturally belongs to based on axial coordinates.
+        
+        Sectors are defined by the three main axes extending from center:
+        - Orange sector: Extends along the line where q ≈ 0 (through (0, -4) toward (4, -4))
+        - Green sector: Extends along the line where s = -q - r ≈ 0 (through (-4, 4))
+        - Blue sector: Extends along the line where r ≈ 0 (through (4, 0) toward (-4, 0))
+        
+        For hexes not on the axes, we determine the sector by which axis line
+        they are closest to based on which coordinate has the smallest absolute value.
+        
+        Args:
+            hex_pos: The hex position to check
+            
+        Returns:
+            'orange', 'green', or 'blue' indicating the native sector
+        """
+        q, r = hex_pos.q, hex_pos.r
+        s = -q - r
+        
+        # Use the coordinate with the smallest absolute value to determine sector
+        # This creates three 120-degree sectors
+        abs_q = abs(q)
+        abs_r = abs(r)
+        abs_s = abs(s)
+        
+        # Orange sector: where q is smallest (q ≈ 0, extending along negative r)
+        # Green sector: where s is smallest (s ≈ 0, extending along the diagonal)
+        # Blue sector: where r is smallest (r ≈ 0, extending along positive q)
+        
+        if abs_q <= abs_r and abs_q <= abs_s:
+            # q is smallest in absolute value -> closest to q=0 line (orange sector)
+            return 'orange'
+        elif abs_s <= abs_q and abs_s <= abs_r:
+            # s is smallest in absolute value -> closest to s=0 line (green sector)
+            return 'green'
+        else:
+            # r is smallest in absolute value -> closest to r=0 line (blue sector)
+            return 'blue'
+    
     def _initialize_grid(self):
         """Initialize the grid with the home bases using axial coordinates."""
         # Generate spiral order for backwards compatibility
@@ -215,22 +271,26 @@ class HexGrid:
         # Create cells for owned territories
         for q, r in grey_coords:
             hex_pos = Hex(q, r)
-            self.cells[hex_pos] = HexCell(hex_pos, 'grey', is_home=True, is_permanent=True)
+            native_sector = self._determine_native_sector(hex_pos)
+            self.cells[hex_pos] = HexCell(hex_pos, 'grey', is_home=True, is_permanent=True, native_sector=native_sector)
             self.initial_hexes.add(hex_pos)
         
         for q, r in orange_coords:
             hex_pos = Hex(q, r)
-            self.cells[hex_pos] = HexCell(hex_pos, 'orange', is_home=True, is_permanent=True)
+            native_sector = self._determine_native_sector(hex_pos)
+            self.cells[hex_pos] = HexCell(hex_pos, 'orange', is_home=True, is_permanent=True, native_sector=native_sector)
             self.initial_hexes.add(hex_pos)
         
         for q, r in blue_coords:
             hex_pos = Hex(q, r)
-            self.cells[hex_pos] = HexCell(hex_pos, 'blue', is_home=True, is_permanent=True)
+            native_sector = self._determine_native_sector(hex_pos)
+            self.cells[hex_pos] = HexCell(hex_pos, 'blue', is_home=True, is_permanent=True, native_sector=native_sector)
             self.initial_hexes.add(hex_pos)
         
         for q, r in green_coords:
             hex_pos = Hex(q, r)
-            self.cells[hex_pos] = HexCell(hex_pos, 'green', is_home=True, is_permanent=True)
+            native_sector = self._determine_native_sector(hex_pos)
+            self.cells[hex_pos] = HexCell(hex_pos, 'green', is_home=True, is_permanent=True, native_sector=native_sector)
             self.initial_hexes.add(hex_pos)
         
         # Add surrounding yellow (unclaimed) border hexes
@@ -245,7 +305,8 @@ class HexGrid:
         for q, r in yellow_coords:
             hex_pos = Hex(q, r)
             if hex_pos not in self.cells:  # Don't overwrite existing cells
-                self.cells[hex_pos] = HexCell(hex_pos, None, is_home=False, is_permanent=False)
+                native_sector = self._determine_native_sector(hex_pos)
+                self.cells[hex_pos] = HexCell(hex_pos, None, is_home=False, is_permanent=False, native_sector=native_sector)
                 self.initial_hexes.add(hex_pos)
     
     def get_cell(self, hex_pos: Hex) -> Optional[HexCell]:
@@ -264,7 +325,8 @@ class HexGrid:
     def expand_grid(self, hex_pos: Hex):
         """Expand grid by adding a new hex at position."""
         if hex_pos not in self.cells:
-            self.cells[hex_pos] = HexCell(hex_pos, None, is_home=False)
+            native_sector = self._determine_native_sector(hex_pos)
+            self.cells[hex_pos] = HexCell(hex_pos, None, is_home=False, native_sector=native_sector)
     
     def can_remove_hex(self, hex_pos: Hex) -> bool:
         """Check if hex can be removed (must not be initial hex and must be unclaimed with no claimed neighbors)."""
@@ -298,6 +360,22 @@ class HexGrid:
     def get_home_cells(self, faction: str) -> List[HexCell]:
         """Get home base cells for a faction."""
         return [cell for cell in self.cells.values() if cell.owner == faction and cell.is_home]
+    
+    def get_faction_home_base(self, faction: str) -> Optional[Hex]:
+        """Get the central home base hex for a faction.
+        
+        Returns the home base hex closest to the faction's sector axis.
+        For Orange: (0, -4) is the farthest along the r-axis
+        For Green: (-4, 4) is the farthest along the s-axis  
+        For Blue: (4, 0) is the farthest along the q-axis
+        """
+        if faction == 'orange':
+            return Hex(0, -4)
+        elif faction == 'green':
+            return Hex(-4, 4)
+        elif faction == 'blue':
+            return Hex(4, 0)
+        return None
     
     def find_connected_cells(self, start_cells: List[HexCell]) -> Set[Hex]:
         """Find all cells connected to start_cells via same-owner neighbors."""
