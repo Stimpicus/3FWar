@@ -33,10 +33,6 @@ python test_sim.py  # Run simulation tests
 
 ### Overview
 
-## Game Mechanics
-
-### Overview
-
 I want to build a simulation with the following definitions and parameters from the above image.
 
 All of the grey, orange, green, and blue hexes pictured above are static and should be considered "Owned" by their representative colors (factions.) These blocks of color will define the "Home base" for each color.
