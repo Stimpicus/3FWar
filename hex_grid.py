@@ -182,39 +182,61 @@ class HexGrid:
         return spiral
     
     def _initialize_grid(self):
-        """Initialize the grid with the home bases using spiral ordering."""
-        # Generate spiral order (IDs 0-60)
+        """Initialize the grid with the home bases using axial coordinates."""
+        # Generate spiral order for backwards compatibility
         self.spiral_order = self._generate_spiral_order()
         
-        # Define ownership based on spiral IDs
-        # Grey: 0, 1, 2, 3, 4, 5, 6, 8, 12, 16, 21, 27, 33, 39, 40, 41, 47, 48, 49, 55, 56, 57
-        grey_ids = {0, 1, 2, 3, 4, 5, 6, 8, 12, 16, 21, 27, 33, 39, 40, 41, 47, 48, 49, 55, 56, 57}
-        # Green: 9, 10, 11, 22, 23, 24, 25, 26, 42, 43, 44, 45, 46
-        green_ids = {9, 10, 11, 22, 23, 24, 25, 26, 42, 43, 44, 45, 46}
-        # Orange: 13, 14, 15, 28, 29, 30, 31, 32, 50, 51, 52, 53, 54
-        orange_ids = {13, 14, 15, 28, 29, 30, 31, 32, 50, 51, 52, 53, 54}
-        # Blue: 7, 17, 18, 19, 20, 34, 35, 36, 37, 38, 58, 59, 60
-        blue_ids = {7, 17, 18, 19, 20, 34, 35, 36, 37, 38, 58, 59, 60}
+        # Define ownership based on precise axial (Q,R) coordinates
+        # Grey: 22 hexes
+        grey_coords = [
+            (0, 0), (0, -1), (1, -1), (1, 0), (0, 1), (-1, 1), (-1, 0), (-2, 0), 
+            (2, -2), (0, 2), (0, 3), (-3, 0), (3, -3), (3, -4), (4, -4), (4, -3), 
+            (1, 3), (0, 4), (-1, 4), (-4, 1), (-4, 0), (-3, -1)
+        ]
         
-        # Create cells based on spiral ordering
-        for idx, hex_pos in enumerate(self.spiral_order):
-            if idx in grey_ids:
-                self.cells[hex_pos] = HexCell(hex_pos, 'grey', is_home=True, is_permanent=True)
-                self.initial_hexes.add(hex_pos)
-            elif idx in orange_ids:
-                self.cells[hex_pos] = HexCell(hex_pos, 'orange', is_home=True, is_permanent=True)
-                self.initial_hexes.add(hex_pos)
-            elif idx in green_ids:
-                self.cells[hex_pos] = HexCell(hex_pos, 'green', is_home=True, is_permanent=True)
-                self.initial_hexes.add(hex_pos)
-            elif idx in blue_ids:
-                self.cells[hex_pos] = HexCell(hex_pos, 'blue', is_home=True, is_permanent=True)
-                self.initial_hexes.add(hex_pos)
+        # Orange: 13 hexes
+        orange_coords = [
+            (0, -2), (0, -3), (0, -4), (1, -2), (1, -3), (1, -4), (2, -3), (2, -4), 
+            (-1, -1), (-1, -2), (-1, -3), (-2, -1), (-2, -2)
+        ]
+        
+        # Blue: 13 hexes
+        blue_coords = [
+            (2, 0), (3, 0), (4, 0), (1, 1), (2, 1), (3, 1), (1, 2), (2, 2), 
+            (2, -1), (3, -1), (4, -1), (3, -2), (4, -2)
+        ]
+        
+        # Green: 13 hexes
+        green_coords = [
+            (-2, 2), (-3, 3), (-4, 4), (-2, 1), (-3, 2), (-4, 3), (-3, 1), (-4, 2), 
+            (-1, 2), (-2, 3), (-3, 4), (-1, 3), (-2, 4)
+        ]
+        
+        # Create cells for owned territories
+        for q, r in grey_coords:
+            hex_pos = Hex(q, r)
+            self.cells[hex_pos] = HexCell(hex_pos, 'grey', is_home=True, is_permanent=True)
+            self.initial_hexes.add(hex_pos)
+        
+        for q, r in orange_coords:
+            hex_pos = Hex(q, r)
+            self.cells[hex_pos] = HexCell(hex_pos, 'orange', is_home=True, is_permanent=True)
+            self.initial_hexes.add(hex_pos)
+        
+        for q, r in blue_coords:
+            hex_pos = Hex(q, r)
+            self.cells[hex_pos] = HexCell(hex_pos, 'blue', is_home=True, is_permanent=True)
+            self.initial_hexes.add(hex_pos)
+        
+        for q, r in green_coords:
+            hex_pos = Hex(q, r)
+            self.cells[hex_pos] = HexCell(hex_pos, 'green', is_home=True, is_permanent=True)
+            self.initial_hexes.add(hex_pos)
         
         # Add surrounding yellow (unclaimed) border hexes
-        # These are hexes adjacent to the spiral but not in it
+        # These are hexes adjacent to the owned territories but not owned
         yellow_coords = [
-            # Additional hexes around the spiral to form a border
+            # Additional hexes around the owned territories to form a border
             # Top border
             (-2, -3), (-1, -4), (-2, -2), (1, -6), (2, -6), (3, -5), (4, -4), (5, -3),
             # Right border
