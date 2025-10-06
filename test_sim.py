@@ -30,7 +30,6 @@ def test_simulation():
         print(f"\n  {color.capitalize()} Faction:")
         print(f"    Credits: ${data['credits']:,}")
         print(f"    Daily Production: ${data['daily_production']:,.2f}")
-        print(f"    Net Worth: ${data['net_worth']:,.2f}")
         print(f"    Territories: {data['territory_count']}")
     
     print("\n\nTesting save/load...")
@@ -55,8 +54,6 @@ def test_simulation():
     for color, data in state['factions'].items():
         print(f"\n  {color.capitalize()} Faction:")
         print(f"    Credits: ${data['credits']:,}")
-        print(f"    Total Resources: ${data['total_resources']:,.2f}")
-        print(f"    Net Worth: ${data['net_worth']:,.2f}")
         print(f"    Territories: {data['territory_count']}")
     
     print("\n✓ All tests passed!")

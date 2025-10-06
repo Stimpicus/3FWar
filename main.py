@@ -223,14 +223,6 @@ class UIPanel:
             surface.blit(name_text, (x_offset, y_offset))
             y_offset += 25
             
-            # Net worth
-            worth_text = self.small_font.render(
-                f"  Net Worth: ${faction_data['net_worth']:,.0f}", 
-                True, COLORS['black']
-            )
-            surface.blit(worth_text, (x_offset, y_offset))
-            y_offset += 20
-            
             # Credits
             credits_text = self.small_font.render(
                 f"  Credits: ${faction_data['credits']:,.0f}", 

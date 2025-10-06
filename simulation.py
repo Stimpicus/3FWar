@@ -38,9 +38,7 @@ class Simulation:
         # Reset factions
         for faction in self.factions.values():
             faction.credits = 10_000
-            faction.total_resources = 0.0
             faction.daily_production = 0.0
-            faction.net_worth = faction.credits
         
         # Reset AIs
         for color, faction in self.factions.items():
@@ -86,7 +84,7 @@ class Simulation:
     
     def _process_daily(self):
         """Process daily events."""
-        # Deposit resources to faction home bases
+        # Deposit resources to faction accounts as credits
         for color, faction in self.factions.items():
             home_cells = self.grid.get_home_cells(color)
             faction_cells = self.grid.get_faction_cells(color)
@@ -97,13 +95,13 @@ class Simulation:
             # Calculate connected territory
             connected = self.grid.find_connected_cells(home_cells)
             
-            # Collect resources from connected cells
+            # Collect resources from connected cells and add directly to credits
             total_deposited = 0.0
             for cell in faction_cells:
                 if cell.hex in connected:
                     total_deposited += cell.deposit_resources()
             
-            faction.add_resources(total_deposited)
+            faction.add_credits(total_deposited)
             
             # Update daily production metric
             faction.daily_production = total_deposited
@@ -255,8 +253,6 @@ class Simulation:
             'factions': {
                 color: {
                     'credits': faction.credits,
-                    'total_resources': faction.total_resources,
-                    'net_worth': faction.net_worth,
                     'daily_production': faction.daily_production,
                     'territory_count': len(self.grid.get_faction_cells(color))
                 }
@@ -296,8 +292,6 @@ class Simulation:
             'factions': {
                 color: {
                     'credits': faction.credits,
-                    'total_resources': faction.total_resources,
-                    'net_worth': faction.net_worth,
                     'daily_production': faction.daily_production
                 }
                 for color, faction in self.factions.items()
@@ -329,9 +323,8 @@ class Simulation:
         for color, faction_data in state['factions'].items():
             faction = self.factions[color]
             faction.credits = faction_data['credits']
-            faction.total_resources = faction_data['total_resources']
-            faction.net_worth = faction_data['net_worth']
-            faction.daily_production = faction_data['daily_production']
+            faction.daily_production = faction_data.get('daily_production', 0.0)
+            # Ignore old total_resources and net_worth fields for backwards compatibility
         
         # Load grid cells
         from hex_grid import Hex, HexCell

@@ -21,32 +21,22 @@ class Faction:
         self.name = name
         self.color = color
         self.credits = 10_000  # Start with 10,000 credits
-        self.total_resources = 0.0
         self.daily_production = 0.0
-        self.net_worth = self.credits
     
     def add_credits(self, amount: float):
         """Add credits to faction."""
         self.credits += amount
-        self.net_worth = self.credits + self.total_resources
     
     def spend_credits(self, amount: float) -> bool:
         """Spend credits if available."""
         if self.credits >= amount:
             self.credits -= amount
-            self.net_worth = self.credits + self.total_resources
             return True
         return False
-    
-    def add_resources(self, amount: float):
-        """Add resources to faction."""
-        self.total_resources += amount
-        self.net_worth = self.credits + self.total_resources
     
     def weekly_reset(self):
         """Reset weekly credits."""
         self.credits = 10_000
-        self.net_worth = self.credits + self.total_resources
 
 
 class Mercenary:
