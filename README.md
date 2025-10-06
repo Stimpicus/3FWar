@@ -137,6 +137,12 @@ The simulation consists of several key modules:
 - Resource value scales with distance from center: `base_value * (1 + distance * 0.1)`
 - Resources are deposited to faction home base at the end of each day
 
+### Contiguity Enforcement
+- **All missions** (Claim, Disrupt, Reclaim) can only target hexes adjacent to connected faction territory
+- Factions cannot "leap-frog" to distant hexes - expansion must be contiguous
+- Disconnected territories cannot be expanded until reconnected to home base
+- Reclaim missions find paths that start from currently connected territory
+
 ### Territory Protection
 - Newly claimed hexes and adjacent same-faction hexes are protected for 3 hours
 - Protected hexes cannot be targeted by Disrupt or Reclaim missions
