@@ -7,11 +7,11 @@ from hex_grid import Hex, HexCell, HexGrid
 class Mission:
     """Represents a mission offered by a faction."""
     
-    def __init__(self, mission_type: str, target_hex: Hex, faction: str, cost: int):
+    def __init__(self, mission_type: str, target_hex: Hex, faction: str, reward: int):
         self.type = mission_type  # 'claim', 'disrupt', 'reclaim'
         self.target = target_hex
         self.faction = faction
-        self.cost = cost
+        self.reward = reward  # Reward offered to mercenaries, not cost to faction
         
 
 class Faction:
@@ -20,7 +20,7 @@ class Faction:
     def __init__(self, name: str, color: str):
         self.name = name
         self.color = color
-        self.credits = 10_000  # Start with 10,000 credits
+        self.credits = 0  # Factions no longer receive initial credits
         self.daily_production = 0.0
     
     def add_credits(self, amount: float):
@@ -35,8 +35,8 @@ class Faction:
         return False
     
     def weekly_reset(self):
-        """Reset weekly credits."""
-        self.credits = 10_000
+        """Weekly reset - no longer resets credits."""
+        pass  # Factions no longer receive weekly credits
 
 
 class Mercenary:
@@ -135,6 +135,23 @@ class FactionAI:
         self.grid = grid
         self.mercenary_pool = mercenary_pool
     
+    def _get_territory_counts(self) -> dict:
+        """Get territory counts for all factions."""
+        counts = {}
+        for color in ['orange', 'green', 'blue']:
+            counts[color] = len(self.grid.get_faction_cells(color))
+        return counts
+    
+    def _get_faction_with_most_territories(self, counts: dict) -> tuple:
+        """Get faction with most territories and the count."""
+        max_color = max(counts, key=counts.get)
+        return max_color, counts[max_color]
+    
+    def _get_faction_with_least_territories(self, counts: dict) -> tuple:
+        """Get faction with least territories and the count."""
+        min_color = min(counts, key=counts.get)
+        return min_color, counts[min_color]
+    
     def evaluate_missions(self, current_hour: int) -> List[Mission]:
         """Evaluate and propose missions for this faction."""
         missions = []
@@ -156,20 +173,20 @@ class FactionAI:
                 path = self._find_shortest_reconnection_path(cell, home_cells, connected)
                 if path:
                     target = path[0]  # First hex to reclaim
-                    cost = self._calculate_mission_cost('reclaim', target)
-                    missions.append(Mission('reclaim', target, self.faction.color, cost))
+                    reward = self._calculate_mission_reward('reclaim', target)
+                    missions.append(Mission('reclaim', target, self.faction.color, reward))
         
         # 2. Claim adjacent unclaimed hexes
         claim_targets = self._find_claim_targets(faction_cells, connected, current_hour)
         for target in claim_targets[:5]:  # Limit to 5 claim missions
-            cost = self._calculate_mission_cost('claim', target.hex)
-            missions.append(Mission('claim', target.hex, self.faction.color, cost))
+            reward = self._calculate_mission_reward('claim', target.hex)
+            missions.append(Mission('claim', target.hex, self.faction.color, reward))
         
         # 3. Disrupt enemy supply lines
         disrupt_targets = self._find_disrupt_targets(current_hour)
         for target in disrupt_targets[:2]:  # Limit to 2 disrupt missions
-            cost = self._calculate_mission_cost('disrupt', target.hex)
-            missions.append(Mission('disrupt', target.hex, self.faction.color, cost))
+            reward = self._calculate_mission_reward('disrupt', target.hex)
+            missions.append(Mission('disrupt', target.hex, self.faction.color, reward))
         
         return missions
     
@@ -302,83 +319,98 @@ class FactionAI:
         
         return None
     
-    def _calculate_mission_cost(self, mission_type: str, target: Hex) -> int:
-        """Calculate cost of a mission with sector-based modifiers.
+    def _calculate_mission_reward(self, mission_type: str, target: Hex) -> int:
+        """Calculate reward for a mission based on territory balance.
         
-        Base cost is modified by:
-        1. Distance from center (original behavior)
-        2. Sector ownership: If the target is in another faction's native sector,
-           cost increases based on proximity to that faction's home base
-        
-        Cost multipliers for cross-sector operations:
-        - BASE_CROSS_SECTOR_MULTIPLIER: 1.5 (50% increase for operating in non-native sector)
-        - MAX_PROXIMITY_MULTIPLIER: 3.0 (3x cost when very close to native faction's base)
-        - Proximity multiplier decreases linearly with distance from native base
+        Dynamic reward calculation:
+        - Claim mission rewards for the faction with the least territories increase proportionally 
+          to the number of territories claimed by the faction with the most territories.
+        - Disrupt mission rewards targeting the faction with the least territories decrease 
+          proportionally to the number of territories claimed by the faction with the most territories.
+        - Disrupt mission rewards targeting the faction with the most territories increase 
+          proportionally to the number of territories claimed by the faction with the least territories.
+        - Claim mission rewards for the faction with the most territories decrease proportionally 
+          to the number of territories claimed by the faction with the least territories.
         """
-        # Base costs for each mission type
-        base_costs = {
+        # Base rewards for each mission type
+        base_rewards = {
             'claim': 1000,
             'disrupt': 5000,
             'reclaim': 3000
         }
         
-        # Start with base cost
-        distance = target.distance_from_center()
-        cost = base_costs[mission_type] * (1 + distance * 0.05)
+        # Get territory counts
+        territory_counts = self._get_territory_counts()
+        faction_with_most, most_territories = self._get_faction_with_most_territories(territory_counts)
+        faction_with_least, least_territories = self._get_faction_with_least_territories(territory_counts)
         
-        # Get the target cell to check its native sector
+        # Start with base reward
+        reward = base_rewards[mission_type]
+        
+        # Determine which faction is being affected by this mission
         target_cell = self.grid.get_cell(target)
         
-        if target_cell and target_cell.native_sector:
-            native_sector = target_cell.native_sector
-            
-            # If operating in another faction's native sector, apply penalty
-            if native_sector != self.faction.color:
-                # Get the native faction's home base for distance calculation
-                native_home_base = self.grid.get_faction_home_base(native_sector)
-                
-                if native_home_base:
-                    # Calculate distance from target to native faction's home base
-                    distance_to_native_base = target.distance_to(native_home_base)
-                    
-                    # Cross-sector base multiplier
-                    BASE_CROSS_SECTOR_MULTIPLIER = 1.5
-                    
-                    # Maximum proximity multiplier (when right next to native base)
-                    MAX_PROXIMITY_MULTIPLIER = 3.0
-                    
-                    # Distance at which proximity penalty becomes negligible (12 hexes)
-                    PROXIMITY_DISTANCE_THRESHOLD = 12
-                    
-                    # Calculate proximity multiplier (higher when closer to native base)
-                    # Linear decay from MAX at distance 0 to 1.0 at THRESHOLD
-                    if distance_to_native_base < PROXIMITY_DISTANCE_THRESHOLD:
-                        proximity_factor = 1.0 - (distance_to_native_base / PROXIMITY_DISTANCE_THRESHOLD)
-                        proximity_multiplier = 1.0 + proximity_factor * (MAX_PROXIMITY_MULTIPLIER - 1.0)
-                    else:
-                        proximity_multiplier = 1.0
-                    
-                    # Apply both cross-sector and proximity multipliers
-                    cost *= BASE_CROSS_SECTOR_MULTIPLIER * proximity_multiplier
+        if mission_type == 'claim':
+            # Claim missions benefit the faction executing them
+            if self.faction.color == faction_with_least:
+                # Faction with least territories gets proportionally higher rewards
+                # Scale by ratio of most to least territories (capped at reasonable values)
+                if least_territories > 0:
+                    multiplier = 1 + (most_territories / max(least_territories, 1) - 1) * 0.5
+                    reward = int(reward * min(multiplier, 3.0))  # Cap at 3x
+                else:
+                    reward = int(reward * 3.0)  # If no territories, max reward
+            elif self.faction.color == faction_with_most:
+                # Faction with most territories gets proportionally lower rewards
+                if most_territories > 0:
+                    multiplier = max(0.3, least_territories / max(most_territories, 1))
+                    reward = int(reward * multiplier)
         
-        return int(cost)
+        elif mission_type == 'disrupt':
+            # Disrupt missions target enemy territory
+            # Determine who owns the target
+            target_owner = target_cell.owner if target_cell else None
+            
+            if target_owner == faction_with_least:
+                # Disrupting faction with least territories gets lower rewards
+                if most_territories > 0:
+                    multiplier = max(0.3, least_territories / max(most_territories, 1))
+                    reward = int(reward * multiplier)
+            elif target_owner == faction_with_most:
+                # Disrupting faction with most territories gets higher rewards
+                if least_territories > 0:
+                    multiplier = 1 + (most_territories / max(least_territories, 1) - 1) * 0.5
+                    reward = int(reward * min(multiplier, 3.0))  # Cap at 3x
+        
+        elif mission_type == 'reclaim':
+            # Reclaim uses similar logic to claim (benefits the faction executing)
+            if self.faction.color == faction_with_least:
+                if least_territories > 0:
+                    multiplier = 1 + (most_territories / max(least_territories, 1) - 1) * 0.5
+                    reward = int(reward * min(multiplier, 3.0))
+                else:
+                    reward = int(reward * 3.0)
+            elif self.faction.color == faction_with_most:
+                if most_territories > 0:
+                    multiplier = max(0.3, least_territories / max(most_territories, 1))
+                    reward = int(reward * multiplier)
+        
+        return max(100, reward)  # Minimum reward of 100
     
     def execute_mission(self, mission: Mission, current_hour: int) -> bool:
         """Execute a mission if possible.
         
         Enforces strict contiguity: missions can only target hexes adjacent to 
         connected faction territory (with a path from home base).
+        
+        Missions no longer cost factions credits. Instead, mercenaries receive rewards
+        that are not deducted from faction credits.
         """
-        # Check if faction can afford it
-        if not self.faction.spend_credits(mission.cost):
-            return False
+        # Check if mercenaries available (no longer check if faction can afford it)
+        # All mercenaries have equal chance regardless of mission reward
+        required_mercs = 1  # Each mission requires 1 mercenary
         
-        # Calculate required mercenaries
-        required_mercs = max(1, mission.cost // 10000)
-        
-        # Check if mercenaries available
         if not self.mercenary_pool.allocate(required_mercs, current_hour):
-            self.faction.add_credits(mission.cost)  # Refund
             return False
         
         # Get connected territory for contiguity check
@@ -432,10 +464,7 @@ class FactionAI:
             success = False
         
         # Note: Mercenaries are now automatically released after 0.5 hours
-        # No need to manually release them here
-        
-        if not success:
-            self.faction.add_credits(mission.cost)  # Refund if mission failed
+        # Mission rewards are not deducted from faction credits
         
         return success
     

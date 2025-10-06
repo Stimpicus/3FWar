@@ -72,17 +72,17 @@ def test_mission_timer():
 
 
 def test_weekly_credits():
-    """Test that weekly credits reset to 10,000."""
-    print("\n[TEST 4] Weekly Credit Reset (10,000 credits)")
+    """Test that weekly credits no longer reset to a fixed value."""
+    print("\n[TEST 4] No Weekly Credit Reset")
     
     sim = Simulation()
     
     # Check initial credits
     state = sim.get_state()
     for color in ['orange', 'green', 'blue']:
-        assert state['factions'][color]['credits'] == 10_000, \
-            f"{color} should start with 10,000 credits"
-    print("  ✓ All factions start with 10,000 credits")
+        assert state['factions'][color]['credits'] == 0, \
+            f"{color} should start with 0 credits"
+    print("  ✓ All factions start with 0 credits")
     
     # Run to just before week boundary
     for _ in range(167):
@@ -103,10 +103,9 @@ def test_weekly_credits():
     assert state['week'] == 1, "Should be week 1 after 168 hours"
     print("  ✓ Week counter incremented at hour 168")
     
-    # Note: Credits may be higher than 10,000 if missions executed or daily production added
-    # The important thing is the reset happened, but we can't easily verify the exact value
-    # since gameplay continues after reset
-    print("  ✓ Weekly reset executed successfully")
+    # Credits should not reset to a fixed value - they continue from previous week
+    # No guaranteed weekly income
+    print("  ✓ Weekly reset no longer gives guaranteed credits")
 
 
 def test_weekly_interval():
@@ -185,8 +184,8 @@ def test_reset_to_correct_values():
     assert state['mercenary_pool'] == 300, "Mercenary pool should be 300"
     
     for color in ['orange', 'green', 'blue']:
-        assert state['factions'][color]['credits'] == 10_000, \
-            f"{color} credits should be 10,000 after reset"
+        assert state['factions'][color]['credits'] == 0, \
+            f"{color} credits should be 0 after reset"
     
     print("  ✓ Reset correctly applies all new balance values")
 
@@ -209,8 +208,9 @@ if __name__ == "__main__":
     print("="*70)
     print("\nSummary of Changes:")
     print("  • Mercenary pool size: 1000 → 300")
-    print("  • Faction weekly credits: 1,000,000,000 → 10,000")
-    print("  • Faction initial credits: 1,000,000,000 → 10,000")
+    print("  • Faction weekly credits: 1,000,000,000 → 0 (no reset)")
+    print("  • Faction initial credits: 1,000,000,000 → 0")
     print("  • Mission timer: Added 0.5 hour completion time")
     print("  • Mercenary representation: Pool size → Individual objects")
     print("  • Weekly interval: Confirmed at 168 hours")
+
