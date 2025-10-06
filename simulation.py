@@ -269,6 +269,7 @@ class Simulation:
             cells_data[f"{hex_pos.q},{hex_pos.r}"] = {
                 'owner': cell.owner,
                 'is_home': cell.is_home,
+                'is_permanent': cell.is_permanent,
                 'resources': cell.resources,
                 'protection_until': cell.protection_until
             }
@@ -312,7 +313,8 @@ class Simulation:
         for hex_str, cell_data in state['cells'].items():
             q, r = map(int, hex_str.split(','))
             hex_pos = Hex(q, r)
-            cell = HexCell(hex_pos, cell_data['owner'], cell_data['is_home'])
+            is_permanent = cell_data.get('is_permanent', False)  # Default to False for backwards compatibility
+            cell = HexCell(hex_pos, cell_data['owner'], cell_data['is_home'], is_permanent)
             cell.resources = cell_data['resources']
             cell.protection_until = cell_data['protection_until']
             self.grid.cells[hex_pos] = cell

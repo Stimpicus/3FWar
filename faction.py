@@ -122,14 +122,18 @@ class FactionAI:
     def _find_claim_targets(self, faction_cells: List[HexCell], connected: Set[Hex], current_hour: int) -> List[HexCell]:
         """Find unclaimed hexes adjacent to connected faction territory."""
         targets = []
+        seen = set()  # Track seen hexes to avoid duplicates
         
         for cell in faction_cells:
             if cell.hex not in connected:
                 continue  # Only expand from connected territory
             
             for neighbor in self.grid.get_neighbors(cell.hex):
-                if neighbor.owner is None and neighbor not in targets:
+                # Only claim unclaimed hexes (owner is None)
+                # and only if they're adjacent to owned/claimed territory
+                if neighbor.owner is None and neighbor.hex not in seen:
                     targets.append(neighbor)
+                    seen.add(neighbor.hex)
         
         # Sort by distance from center (prioritize closer hexes for efficiency)
         targets.sort(key=lambda c: c.hex.distance_from_center())
@@ -231,7 +235,9 @@ class FactionAI:
         target_cell = self.grid.get_cell(mission.target)
         
         if mission.type == 'claim':
-            if target_cell and target_cell.owner is None:
+            # Can only claim unclaimed territory (owner is None)
+            # Cannot claim permanently owned territories
+            if target_cell and target_cell.owner is None and not target_cell.is_permanent:
                 target_cell.owner = self.faction.color
                 target_cell.set_protection(current_hour, 3)
                 
@@ -247,7 +253,8 @@ class FactionAI:
                 success = False
         
         elif mission.type in ['disrupt', 'reclaim']:
-            if target_cell and target_cell.owner not in [None, self.faction.color] and not target_cell.is_home:
+            # Cannot disrupt/reclaim permanently owned territories or home bases
+            if target_cell and target_cell.owner not in [None, self.faction.color] and not target_cell.is_home and not target_cell.is_permanent:
                 if not target_cell.is_protected(current_hour):
                     target_cell.owner = self.faction.color
                     target_cell.set_protection(current_hour, 3)

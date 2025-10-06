@@ -41,10 +41,11 @@ class Hex:
 class HexCell:
     """Represents a hex cell with game state."""
     
-    def __init__(self, hex_pos: Hex, owner: Optional[str] = None, is_home: bool = False):
+    def __init__(self, hex_pos: Hex, owner: Optional[str] = None, is_home: bool = False, is_permanent: bool = False):
         self.hex = hex_pos
         self.owner = owner  # None, 'grey', 'orange', 'green', 'blue'
         self.is_home = is_home  # True for home base hexes
+        self.is_permanent = is_permanent  # True for permanently owned territories
         self.resources = 0.0  # Accumulated resources
         self.protection_until = 0  # Simulation hour until which this cell is protected
         
@@ -71,7 +72,7 @@ class HexCell:
     
     def reset(self):
         """Reset cell to unclaimed state."""
-        if not self.is_home:
+        if not self.is_home and not self.is_permanent:
             self.owner = None
             self.resources = 0.0
             self.protection_until = 0
@@ -83,80 +84,157 @@ class HexGrid:
     def __init__(self):
         self.cells = {}  # Dict[Hex, HexCell]
         self.initial_hexes = set()  # Track initial grid size
+        self.spiral_order = []  # Track spiral order of hexes
         self._initialize_grid()
     
+    def _generate_spiral_order(self) -> List[Hex]:
+        """Generate spiral order starting from center, going downward and clockwise.
+        
+        Returns list of Hex positions in spiral order for IDs 0-60.
+        Spiral pattern: center (0,0), then move down and spiral clockwise.
+        """
+        spiral = []
+        
+        # Start at center (ID 0)
+        spiral.append(Hex(0, 0))
+        
+        # Spiral outward in rings
+        # Ring 1 (IDs 1-6): Start below center and go clockwise
+        ring1 = [
+            Hex(0, 1),    # ID 1: Down from center
+            Hex(-1, 1),   # ID 2: Down-left
+            Hex(-1, 0),   # ID 3: Left
+            Hex(0, -1),   # ID 4: Up-left
+            Hex(1, -1),   # ID 5: Up
+            Hex(1, 0),    # ID 6: Up-right
+        ]
+        spiral.extend(ring1)
+        
+        # Ring 2 (IDs 7-18): Continue clockwise from below center
+        ring2 = [
+            Hex(1, 1),    # ID 7: Down-right from center
+            Hex(0, 2),    # ID 8: Down
+            Hex(-1, 2),   # ID 9: Down-left
+            Hex(-2, 2),   # ID 10: Down-left
+            Hex(-2, 1),   # ID 11: Left
+            Hex(-2, 0),   # ID 12: Left
+            Hex(-1, -1),  # ID 13: Up-left
+            Hex(0, -2),   # ID 14: Up-left
+            Hex(1, -2),   # ID 15: Up
+            Hex(2, -2),   # ID 16: Up
+            Hex(2, -1),   # ID 17: Up-right
+            Hex(2, 0),    # ID 18: Right
+            Hex(2, 1),    # ID 19: Down-right
+            Hex(1, 2),    # ID 20: Down-right (back toward start)
+        ]
+        spiral.extend(ring2)
+        
+        # Ring 3 (IDs 21-39)
+        ring3 = [
+            Hex(0, 3),    # ID 21: Down from ring 2
+            Hex(-1, 3),   # ID 22: Down-left
+            Hex(-2, 3),   # ID 23: Down-left
+            Hex(-3, 3),   # ID 24: Down-left
+            Hex(-3, 2),   # ID 25: Left
+            Hex(-3, 1),   # ID 26: Left
+            Hex(-3, 0),   # ID 27: Left
+            Hex(-2, -1),  # ID 28: Up-left
+            Hex(-1, -2),  # ID 29: Up-left
+            Hex(0, -3),   # ID 30: Up-left
+            Hex(1, -3),   # ID 31: Up
+            Hex(2, -3),   # ID 32: Up
+            Hex(3, -3),   # ID 33: Up
+            Hex(3, -2),   # ID 34: Up-right
+            Hex(3, -1),   # ID 35: Up-right
+            Hex(3, 0),    # ID 36: Right
+            Hex(3, 1),    # ID 37: Down-right
+            Hex(3, 2),    # ID 38: Down-right
+            Hex(2, 2),    # ID 39: Down-right (toward start)
+        ]
+        spiral.extend(ring3)
+        
+        # Ring 4 outer (IDs 40-60) - partial ring for remaining hexes
+        ring4 = [
+            Hex(1, 3),    # ID 40: Down from ring 3
+            Hex(0, 4),    # ID 41: Down
+            Hex(-1, 4),   # ID 42: Down-left
+            Hex(-2, 4),   # ID 43: Down-left
+            Hex(-3, 4),   # ID 44: Down-left
+            Hex(-4, 4),   # ID 45: Down-left
+            Hex(-4, 3),   # ID 46: Left
+            Hex(-4, 2),   # ID 47: Left
+            Hex(-4, 1),   # ID 48: Left
+            Hex(-4, 0),   # ID 49: Left
+            Hex(-3, -1),  # ID 50: Up-left
+            Hex(-2, -2),  # ID 51: Up-left
+            Hex(-1, -3),  # ID 52: Up-left
+            Hex(0, -4),   # ID 53: Up-left
+            Hex(1, -4),   # ID 54: Up
+            Hex(2, -4),   # ID 55: Up
+            Hex(3, -4),   # ID 56: Up
+            Hex(4, -4),   # ID 57: Up
+            Hex(4, -3),   # ID 58: Up-right
+            Hex(4, -2),   # ID 59: Up-right
+            Hex(4, -1),   # ID 60: Up-right
+        ]
+        spiral.extend(ring4)
+        
+        return spiral
+    
     def _initialize_grid(self):
-        """Initialize the grid with the home bases from the image."""
-        # Center grey hexes
-        grey_coords = [
-            (0, 0), (-1, 1), (0, 1), (1, 0), (1, -1), (0, -1), (-1, 0),
-            (-2, 1), (-1, 2), (1, 1), (2, 0), (2, -1), (1, -2), (-1, -1), (-2, 0),
-            (-2, 2), (0, 2), (2, 1), (3, 0), (3, -1), (2, -2), (0, -2), (-2, -1), (-3, 1)
-        ]
+        """Initialize the grid with the home bases using spiral ordering."""
+        # Generate spiral order (IDs 0-60)
+        self.spiral_order = self._generate_spiral_order()
         
-        # Orange hexes (top)
-        orange_coords = [
-            (-1, -2), (0, -3), (1, -3), (2, -3), (3, -2), (4, -2),
-            (-1, -3), (0, -4), (1, -4), (2, -4), (3, -3), (4, -3),
-            (0, -5), (1, -5), (2, -5), (3, -4)
-        ]
+        # Define ownership based on spiral IDs
+        # Grey: 0, 1, 2, 3, 4, 5, 6, 8, 12, 16, 21, 27, 33, 39, 40, 41, 47, 48, 49, 55, 56, 57
+        grey_ids = {0, 1, 2, 3, 4, 5, 6, 8, 12, 16, 21, 27, 33, 39, 40, 41, 47, 48, 49, 55, 56, 57}
+        # Green: 9, 10, 11, 22, 23, 24, 25, 26, 42, 43, 44, 45, 46
+        green_ids = {9, 10, 11, 22, 23, 24, 25, 26, 42, 43, 44, 45, 46}
+        # Orange: 13, 14, 15, 28, 29, 30, 31, 32, 50, 51, 52, 53, 54
+        orange_ids = {13, 14, 15, 28, 29, 30, 31, 32, 50, 51, 52, 53, 54}
+        # Blue: 7, 17, 18, 19, 20, 34, 35, 36, 37, 38, 58, 59, 60
+        blue_ids = {7, 17, 18, 19, 20, 34, 35, 36, 37, 38, 58, 59, 60}
         
-        # Green hexes (bottom-left)
-        green_coords = [
-            (-3, 2), (-4, 3), (-3, 3), (-2, 3),
-            (-4, 4), (-3, 4), (-2, 4), (-1, 3),
-            (-5, 5), (-4, 5), (-3, 5), (-2, 5), (-1, 4)
-        ]
+        # Create cells based on spiral ordering
+        for idx, hex_pos in enumerate(self.spiral_order):
+            if idx in grey_ids:
+                self.cells[hex_pos] = HexCell(hex_pos, 'grey', is_home=True, is_permanent=True)
+                self.initial_hexes.add(hex_pos)
+            elif idx in orange_ids:
+                self.cells[hex_pos] = HexCell(hex_pos, 'orange', is_home=True, is_permanent=True)
+                self.initial_hexes.add(hex_pos)
+            elif idx in green_ids:
+                self.cells[hex_pos] = HexCell(hex_pos, 'green', is_home=True, is_permanent=True)
+                self.initial_hexes.add(hex_pos)
+            elif idx in blue_ids:
+                self.cells[hex_pos] = HexCell(hex_pos, 'blue', is_home=True, is_permanent=True)
+                self.initial_hexes.add(hex_pos)
         
-        # Blue hexes (bottom-right)
-        blue_coords = [
-            (3, 1), (4, 1), (4, 0), (5, 0),
-            (4, 2), (5, 1), (5, -1), (6, 0),
-            (5, 2), (6, 1), (6, -1), (7, 0)
-        ]
-        
-        # Yellow border hexes (unclaimed)
+        # Add surrounding yellow (unclaimed) border hexes
+        # These are hexes adjacent to the spiral but not in it
         yellow_coords = [
+            # Additional hexes around the spiral to form a border
             # Top border
             (-2, -3), (-1, -4), (-2, -2), (1, -6), (2, -6), (3, -5), (4, -4), (5, -3),
             # Right border
             (5, -2), (6, -1), (7, -1), (7, 1), (6, 2), (5, 3), (4, 3),
             # Bottom-right border
-            (3, 2), (2, 2), (1, 2), (0, 3), (-1, 5),
+            (3, 3), (2, 3), (1, 4), (0, 5), (-1, 5),
             # Bottom border
-            (-2, 6), (-3, 6), (-4, 6), (-5, 6),
+            (-2, 6), (-3, 6), (-4, 6), (-5, 6), (-3, 5), (-2, 5),
             # Left border
-            (-5, 4), (-5, 3), (-5, 2), (-4, 2), (-4, 1), (-3, 0), (-3, -1), (-2, -2),
+            (-5, 5), (-5, 4), (-5, 3), (-5, 2), (-5, 1), (-5, 0), (-4, -1), (-3, -2),
             # Additional yellow hexes to complete the border
-            (-1, -5), (4, -5), (5, -4), (6, -2), (8, 0), (7, 2), (3, 3), (1, 3),
-            (-6, 5), (-6, 4), (-6, 3), (-6, 2), (-5, 1), (-4, 0), (-3, -2),
+            (-1, -5), (4, -5), (5, -4), (6, -2), (8, 0), (7, 2), (3, 4), (1, 5),
+            (-6, 5), (-6, 4), (-6, 3), (-6, 2), (-6, 1), (-5, -1), (-4, -2),
         ]
-        
-        # Create cells
-        for q, r in grey_coords:
-            hex_pos = Hex(q, r)
-            self.cells[hex_pos] = HexCell(hex_pos, 'grey', is_home=True)
-            self.initial_hexes.add(hex_pos)
-        
-        for q, r in orange_coords:
-            hex_pos = Hex(q, r)
-            self.cells[hex_pos] = HexCell(hex_pos, 'orange', is_home=True)
-            self.initial_hexes.add(hex_pos)
-        
-        for q, r in green_coords:
-            hex_pos = Hex(q, r)
-            self.cells[hex_pos] = HexCell(hex_pos, 'green', is_home=True)
-            self.initial_hexes.add(hex_pos)
-        
-        for q, r in blue_coords:
-            hex_pos = Hex(q, r)
-            self.cells[hex_pos] = HexCell(hex_pos, 'blue', is_home=True)
-            self.initial_hexes.add(hex_pos)
         
         for q, r in yellow_coords:
             hex_pos = Hex(q, r)
-            self.cells[hex_pos] = HexCell(hex_pos, None, is_home=False)
-            self.initial_hexes.add(hex_pos)
+            if hex_pos not in self.cells:  # Don't overwrite existing cells
+                self.cells[hex_pos] = HexCell(hex_pos, None, is_home=False, is_permanent=False)
+                self.initial_hexes.add(hex_pos)
     
     def get_cell(self, hex_pos: Hex) -> Optional[HexCell]:
         """Get cell at hex position."""
